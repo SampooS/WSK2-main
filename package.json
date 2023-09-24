@@ -33,6 +33,7 @@
     "graphql-rate-limit": "^3.3.0",
     "graphql-shield": "^7.6.5",
     "helmet": "^6.0.1",
+    "jest-cli": "^29.7.0",
     "jsonwebtoken": "^9.0.0",
     "mongoose": "^7.0.2",
     "morgan": "^1.10.0",
