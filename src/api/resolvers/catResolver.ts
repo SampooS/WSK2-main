@@ -66,7 +66,7 @@ export default {
         process.env.token as string,
         process.env.JWT_SECRET as string
       ) as UserIdWithToken;
-        
+
       const oldCat = await catModel.findById(args.id);
 
       if (!oldCat) { throw new GraphQLError('Cat doesnt exist'); }
