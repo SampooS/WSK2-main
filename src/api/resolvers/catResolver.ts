@@ -1,4 +1,4 @@
-import { Response } from 'express';
+import {Response} from 'express';
 import jwt from 'jsonwebtoken';
 import {GraphQLError} from 'graphql';
 import {Cat} from '../../interfaces/Cat';
@@ -7,10 +7,10 @@ import {User, UserIdWithToken} from '../../interfaces/User';
 import rectangleBounds from '../../utils/rectangleBounds';
 import catModel from '../models/catModel';
 import userModel from '../models/userModel';
-import {Types} from 'mongoose';
+import mongoose, {Types} from 'mongoose';
 import UploadMessageResponse from '../../interfaces/UploadMessageResponse';
 import fetchData from '../../functions/fetchData';
-import { postCat } from '../../../test/catFunctions';
+import {postCat} from '../../../test/catFunctions';
 
 // TODO: create resolvers based on cat.graphql
 // note: when updating or deleting a cat, you need to check if the user is the owner of the cat
@@ -27,8 +27,8 @@ export default {
       return response;
     },
     catsByArea: async (_parent: undefined, args: {area: string}) => {
-        const response = await catModel.find({area: args.area}).populate('owner');
-        return response;
+      const response = await catModel.find({area: args.area}).populate('owner');
+      return response;
     },
     catsByOwner: async (_parent: undefined, args: {owner: string}) => {
       const response = await catModel.find({owner: args.owner});
@@ -36,86 +36,101 @@ export default {
     },
   },
   Mutation: {
-    createCat: async (_parent: undefined, args: Cat) => {
-      const token = jwt.verify(
-        process.env.token as string,
-        process.env.JWT_SECRET as string
-      ) as UserIdWithToken;
-
-      if (!token) {
-        throw new GraphQLError('Please login to create a cat');
-      }
-      const user = await userModel.findById(token.id);
-
-      if (!user) {
-        throw new GraphQLError('owner invalid');
-      }
-
-      console.log('owner = ' + user);
-
-      const newCat = new catModel(args);
-      newCat.owner = user;
-
-      return await newCat.save();
-    },
-    updateCat: async (
-      _parent: undefined,
-      args: {id: string; cat_name: string; weight: number; birthdate: Date}
-    ) => {
-      const userFromToken = jwt.verify(
-        process.env.token as string,
-        process.env.JWT_SECRET as string
-      ) as UserIdWithToken;
-
-      const oldCat = await catModel.findById(args.id);
-
-      if (!oldCat) { throw new GraphQLError('Cat doesnt exist'); }
+    createCat: async (_: undefined, args: Cat, user: UserIdWithToken) => {
       
-      if (!userFromToken || userFromToken.id != oldCat.owner.toString()) {
-        throw new GraphQLError(
-          'UserId doesnt match cat or doesnt exist, please login to the correct user'
-        );
+      if (!user.token) {
+        console.log("no token");
+        return null;
       }
 
-      const response = await catModel.findByIdAndUpdate(
-        args.id,
-        {
-          cat_name: args.cat_name,
-          weight: args.weight,
-          birth_date: args.birthdate,
-        },
-        {new: true}
-      ).populate('owner');
-
-      return response;
-    },
-    deleteCat: async (_parent: undefined, args: {id: string}) => {
-      const userFromToken = jwt.verify(
-        process.env.token as string,
-        process.env.JWT_SECRET as string
-      ) as UserIdWithToken;
-
-      const cat = await catModel.findById(args.id);
+      args.owner = new Types.ObjectId(user.id);
+      
+      const cat = (await catModel.create(args)) as Cat;
+      
+      console.log("cat created");
+      console.log(cat);
+      
 
       if (!cat) {
-        throw new GraphQLError('Cat doesnt exist');
+        throw new GraphQLError('Cat not created', {
+          extensions: {code: 'NOT_CREATED'},
+        });
+      }
+      
+      return cat;
+    },
+    updateCat: async (_: undefined, args: Cat, user: UserIdWithToken) => {
+      console.log("updating cat");
+      
+      const cat = (await catModel.findById(args.id)) as Cat;
+
+      console.log("cat = " + cat);
+
+      if (!cat) {
+        throw new GraphQLError('Cat not found', {
+          extensions: {code: 'NOT_FOUND'},
+        });
       }
 
-      if (cat.owner.id != userFromToken.id) {
-        throw new GraphQLError(`You don't own this cat`);
+      console.log("cat found");
+
+      console.log("userid: " + user.id + "\ncat owner: " + cat.owner.toString());
+      
+      
+      if (user.id !== cat.owner.toString() && user.role !== 'admin') {
+        throw new GraphQLError('Unauthorized!', {
+          extensions: {code: 'UNAUTHORIZED'},
+        });
       }
+
+      
+
+      console.log("authorized");
+      
+      const updatedCat = (await catModel.findByIdAndUpdate(args.id, args, {
+        new: true,
+      })) as Cat;
+      console.log("updated cat = " + updatedCat);
+      
+      return updatedCat;
+    },
+
+    deleteCat: async (
+      _: undefined,
+      args: {id: string},
+      user: UserIdWithToken
+    ) => {
+      console.log("deleting cat");
+      
+      const cat = (await catModel.findById(args.id)) as Cat;
+      if (!cat) {
+        throw new GraphQLError('Cat not found', {
+          extensions: {code: 'NOT_FOUND'},
+        });
+      }
+      if (user.id !== cat.owner.toString() && user.role !== 'admin') {
+        throw new GraphQLError('Unauthorized', {
+          extensions: {code: 'UNAUTHORIZED'},
+        });
+      }
+      const deletedCat = (await catModel.findByIdAndDelete(args.id)) as Cat;
+      return deletedCat;
     },
     updateCatAsAdmin: async (
       _parent: undefined,
-      args: {id: string; cat_name: string; weight: number; birthdate: Date}
+      args: Cat,
+      user: UserIdWithToken
     ) => {
-      const userFromToken = jwt.verify(
-        process.env.token as string,
-        process.env.JWT_SECRET as string
-      ) as UserIdWithToken;
 
-      if (!userFromToken || userFromToken.role !== 'admin') {
-        throw new GraphQLError('This function is for admin use only');
+      if (!args) {
+        throw new GraphQLError('Cat not found', {
+          extensions: {code: 'NOT_FOUND'},
+        });
+      }
+      if (user.role !== 'admin' || !user.token) {
+        throw new GraphQLError('This function is for admin use only', {
+          extensions: {code: 'UNAUTHORIZED'},
+        });
       }
 
       const response = await catModel.findByIdAndUpdate(
@@ -130,17 +145,24 @@ export default {
 
       return response;
     },
-    deleteCatAsAdmin: async (_parent: undefined, args: {id: string}) => {
-      const userFromToken = jwt.verify(
-        process.env.token as string,
-        process.env.JWT_SECRET as string
-      ) as UserIdWithToken;
 
-      if (!userFromToken || userFromToken.role !== 'admin') {
-        throw new GraphQLError('This function is for admin use only');
+    deleteCatAsAdmin: async (_parent: undefined,
+      args: Cat,
+      user: UserIdWithToken
+    ) => {
+      const cat = (await catModel.findById(args.id)) as Cat;
+      if (!cat) {
+        throw new GraphQLError('Cat not found', {
+          extensions: {code: 'NOT_FOUND'},
+        });
+      }
+      if (user.role !== 'admin' || !user.token) {
+        throw new GraphQLError('This function is for admin use only', {
+          extensions: {code: 'UNAUTHORIZED'},
+        });
       }
 
-      const response = await catModel.findByIdAndDelete(args.id);
+      const response = await catModel.findByIdAndDelete(args.id) as Cat;
 
       return response;
     },

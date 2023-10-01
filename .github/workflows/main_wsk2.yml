@@ -51,4 +51,5 @@ jobs:
         with:
           app-name: 'WSK2'
           slot-name: 'Production'
+          publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_E5E7C11EEC0C4D96BA70717C458A5622 }}
           package: .

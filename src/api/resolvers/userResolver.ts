@@ -6,6 +6,8 @@ import {
   Credentials,
   TokenMessage,
   UserModify,
+  User,
+  UserIdWithToken,
 } from '../../interfaces/User';
 import fetchData from '../../functions/fetchData';
 import AuthMessageResponse from '../../interfaces/AuthMessageResponse';
@@ -79,28 +81,40 @@ export default {
       
       return user;
     },
-    updateUser: async (_parent: undefined, args: {user: UserModify}) => {
-      if (process.env.token === undefined || process.env.token === '') {
-        throw new GraphQLError('token not defined');
-      }
-
-      const response = await fetchData<TokenMessage>(
-        process.env.AUTH_API_URL + '/users',
-        {
-          method: 'PUT',
-          body: JSON.stringify(args.user),
-          headers: {'Content-Type': 'application/json', 'Authorization': `Bearer ${process.env.token}`},
-        }
+    updateUser: async (
+      _: undefined,
+      args: {user: User},
+      user: UserIdWithToken 
+    ) => {
+      const options: RequestInit = {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${user.token}`,
+        },
+        body: JSON.stringify(args.user),
+      };
+      const response = await fetchData<User>(
+        `${process.env.AUTH_API_URL}/users`,
+        options
       );
       return response;
     },
-    deleteUser: async (_parent: undefined, args: {id: string}) => {
-      const response = await fetchData<TokenMessage>(
-        process.env.AUTH_API_URL + '/users',
-        {
-          method: 'DELETE',
-          headers: {'Content-Type': 'application/json', 'Authorization': `Bearer ${process.env.token}`},
-        }
+    deleteUser: async (
+      _: undefined,
+      __: undefined,
+      user: UserIdWithToken
+    ) => {
+      const options: RequestInit = {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${user.token}`,
+        },
+      };
+      const response = await fetchData<User>(
+        `${process.env.AUTH_API_URL}/users`,
+        options
       );
       return response;
     },
