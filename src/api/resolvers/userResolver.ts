@@ -96,7 +96,7 @@ export default {
     },
     deleteUser: async (_parent: undefined, args: {id: string}) => {
       const response = await fetchData<TokenMessage>(
-        process.env.AUTH_API_URL + '/users' + args.id,
+        process.env.AUTH_API_URL + '/users',
         {
           method: 'DELETE',
           headers: {'Content-Type': 'application/json', 'Authorization': `Bearer ${process.env.token}`},
